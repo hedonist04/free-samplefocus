@@ -4,12 +4,20 @@ import json
 from lxml import html
 from pathlib import Path
 
-import config
+
+# URL семплов для загрузки
+SAMPLE_URLS = []
+
+# Теперь требует User-Agent
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' 
+
+# Папка для загруженных файлов
+OUTPUT_FOLDER = 'output'
 
 
 def extract_info(url):
     resp = requests.get(
-        url, headers={ 'User-Agent': config.USER_AGENT }
+        url, headers={ 'User-Agent': USER_AGENT }
     )
     resp.raise_for_status()
 
@@ -22,15 +30,12 @@ def extract_info(url):
     return s['sample_mp3_url'], s['sample_original_filename']
 
 
-def download(url):
-    url, file_name = extract_info(url)
-    out_path = Path(config.OUTPUT_FOLDER) / file_name
+def download_audio(audio_url, file_name):
+    out_path = Path(OUTPUT_FOLDER) / file_name
     out_path.parent.mkdir(exist_ok=True)
 
-    print(f"Загрузка", file_name)
-
     resp = requests.get(
-        url, headers={ 'Referer': 'https://samplefocus.com/' }, stream=True
+        audio_url, headers={ 'Referer': 'https://samplefocus.com/' }, stream=True
     )
     resp.raise_for_status()
 
@@ -41,12 +46,17 @@ def download(url):
 
 
 def main():
-    if not config.SAMPLE_URLS:
+    if not SAMPLE_URLS:
         print('Нечего загружать')
         return
 
-    for u in config.SAMPLE_URLS:
-        download(u)
+    for u in SAMPLE_URLS:
+        print('Извлечение информации о файле из', u)
+        audio_url, file_name = extract_info(u)
+        print(f'Найдено {audio_url=} {file_name=}')
+
+        print('Загрузка файла...')
+        download_audio(audio_url, file_name)
 
 
 if __name__ == '__main__':
