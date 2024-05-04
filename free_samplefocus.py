@@ -1,5 +1,6 @@
 import requests 
 import json
+import random
 
 from lxml import html
 from pathlib import Path
@@ -9,37 +10,36 @@ from pathlib import Path
 SAMPLE_URLS = []
 
 # Теперь требует User-Agent
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' 
+USER_AGENTS = [
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' 
+]
 
 # Папка для загруженных файлов
-OUTPUT_FOLDER = 'output'
+OUTPUT_DIR = 'output'
 
 
-def extract_info(url):
+def extract_sample_info(sample_url):
     resp = requests.get(
-        url, headers={ 'User-Agent': USER_AGENT }
+        sample_url, headers={ 'User-Agent': random.choice(USER_AGENTS) }
     )
     resp.raise_for_status()
 
     tree = html.fromstring(resp.content)
     container = tree.xpath(f'//div[@class="sample-hero-waveform-container"]')[0]
-
     # Все данные о семпле находятся в этом аттрибуте
-    # Из кучи имеющихся данных выбираем только url и название файла
-    s = json.loads(container.attrib['data-react-props'])['sample']
-    return s['sample_mp3_url'], s['sample_original_filename']
+    props = container.attrib['data-react-props']
+
+    return json.loads(props)['sample']
 
 
-def download_audio(audio_url, file_name):
-    out_path = Path(OUTPUT_FOLDER) / file_name
-    out_path.parent.mkdir(exist_ok=True)
-
+def download_sample_audio(mp3_url, out_path):
     resp = requests.get(
-        audio_url, headers={ 'Referer': 'https://samplefocus.com/' }, stream=True
+        mp3_url, headers={ 'Referer': 'https://samplefocus.com/' }, stream=True
     )
     resp.raise_for_status()
 
-    block_size = 1000 # 1 KB
+    # 1 KB
+    block_size = 1000
     with open(out_path, 'wb') as f:
         for data in resp.iter_content(block_size):
             f.write(data)
@@ -50,13 +50,19 @@ def main():
         print('Нечего загружать')
         return
 
-    for u in SAMPLE_URLS:
-        print('Извлечение информации о файле из', u)
-        audio_url, file_name = extract_info(u)
-        print(f'Найдено {audio_url=} {file_name=}')
+    counter = 1
+    for url in SAMPLE_URLS:
+        sample_info = extract_sample_info(url)
 
-        print('Загрузка файла...')
-        download_audio(audio_url, file_name)
+        mp3_url = sample_info['sample_mp3_url']
+        file_name = sample_info['name'] + '.mp3'
+        out_path = Path(OUTPUT_DIR) / file_name
+
+        print('[{}] загружаем в "{}"'.format(counter, out_path))
+        out_path.parent.mkdir(exist_ok=True)
+        download_sample_audio(mp3_url, out_path)
+
+        counter += 1
 
 
 if __name__ == '__main__':
